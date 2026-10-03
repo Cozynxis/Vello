@@ -1,0 +1,137 @@
+import {useEffect,useMemo,useState} from "react";
+import {
+  Bell,Bookmark,Check,ChevronDown,Compass,Ellipsis,Feather,Heart,Home,
+  Image,Link2,Mail,MessageCircle,MoreHorizontal,Plus,Repeat2,Search,
+  Settings,Share2,Shield,SlidersHorizontal,Sparkles,User,Users,X,Zap
+} from "lucide-react";
+
+const initialPosts=[
+ {id:1,user:"Vello",handle:"@vello",avatar:"V",verified:"official",time:"12m",text:"Welcome to Vello. A social space built around people, ideas and the things you actually want to see.",tags:["#Vello","#Social"],likes:18200,reposts:2100,replies:846,bookmarked:false,liked:false},
+ {id:2,user:"Mia Carter",handle:"@miacarter",avatar:"M",verified:"verified",time:"34m",text:"The timeline feels different when you follow people because you genuinely like what they post.",tags:[],likes:4280,reposts:392,replies:174,bookmarked:false,liked:false},
+ {id:3,user:"Alex",handle:"@alexbuilds",avatar:"A",verified:"developer",time:"1h",text:"Shipping the first Vello developer tools today. More integrations are coming soon. ⚒️",tags:["#BuildInPublic"],likes:921,reposts:87,replies:63,bookmarked:false,liked:false},
+ {id:4,user:"Noah",handle:"@noah",avatar:"N",verified:null,time:"2h",text:"What should the next community feature be?",poll:["Communities","Group chats","Live rooms"],pollVotes:[48,31,21],likes:1204,reposts:94,replies:208,bookmarked:false,liked:false}
+];
+
+const badgeInfo={
+ verified:{label:"Verified",icon:Check},
+ founder:{label:"Founder",icon:Sparkles},
+ official:{label:"Official",icon:Shield},
+ developer:{label:"Developer",icon:Zap},
+ beta:{label:"Beta Tester",icon:Zap}
+};
+
+function Badge({type}){if(!type)return null;const b=badgeInfo[type];const Icon=b.icon;return <button className={`badge badge-${type}`} title={b.label} aria-label={b.label}><Icon size={11} strokeWidth={3}/></button>}
+
+function Avatar({letter="L",small=false}){return <div className={`avatar ${small?"avatar-small":""}`}>{letter}</div>}
+
+function NavItem({icon:Icon,label,active,onClick,badge}){return <button className={`nav-item ${active?"active":""}`} onClick={onClick}><span className="nav-icon"><Icon size={21}/>{badge&&<i/>}</span><span>{label}</span></button>}
+
+function PostCard({post,onLike,onRepost,onBookmark,onComment}){
+ return <article className="post">
+   <Avatar letter={post.avatar}/>
+   <div className="post-body">
+    <div className="post-head"><div className="identity"><b>{post.user}</b><Badge type={post.verified}/><span>{post.handle}</span><span>·</span><span>{post.time}</span></div><button className="icon-btn"><Ellipsis size={18}/></button></div>
+    <p className="post-text">{post.text}</p>
+    {post.tags.length>0&&<div className="tags">{post.tags.map(t=><span key={t}>{t}</span>)}</div>}
+    {post.poll&&<div className="poll">{post.poll.map((p,i)=><button key={p}><span>{p}</span><em>{post.pollVotes[i]}%</em><i style={{width:`${post.pollVotes[i]}%`}}/></button>)}</div>}
+    <div className="post-actions">
+      <button onClick={()=>onComment(post)}><MessageCircle size={18}/><span>{fmt(post.replies)}</span></button>
+      <button className={post.reposted?"selected":""} onClick={()=>onRepost(post.id)}><Repeat2 size={18}/><span>{fmt(post.reposts)}</span></button>
+      <button className={post.liked?"liked":""} onClick={()=>onLike(post.id)}><Heart size={18} fill={post.liked?"currentColor":"none"}/><span>{fmt(post.likes)}</span></button>
+      <button className={post.bookmarked?"selected":""} onClick={()=>onBookmark(post.id)}><Bookmark size={18} fill={post.bookmarked?"currentColor":"none"}/></button>
+      <button><Share2 size={18}/></button>
+    </div>
+   </div>
+ </article>
+}
+
+function fmt(n){return n>=1000000?(n/1000000).toFixed(1)+"M":n>=1000?(n/1000).toFixed(n>=10000?0:1)+"K":String(n)}
+
+export default function App(){
+ const [posts,setPosts]=useState(()=>load("vello_posts",initialPosts));
+ const [page,setPage]=useState("home");
+ const [query,setQuery]=useState("");
+ const [compose,setCompose]=useState(false);
+ const [draft,setDraft]=useState("");
+ const [activeComment,setActiveComment]=useState(null);
+ const [comment,setComment]=useState("");
+ const [toast,setToast]=useState("");
+ const [following,setFollowing]=useState(false);
+ const [dark,setDark]=useState(true);
+
+ useEffect(()=>save("vello_posts",posts),[posts]);
+ useEffect(()=>{document.body.dataset.theme=dark?"dark":"light"},[dark]);
+
+ const filtered=useMemo(()=>posts.filter(p=>(p.text+" "+p.user+" "+p.handle+" "+p.tags.join(" ")).toLowerCase().includes(query.toLowerCase())),[posts,query]);
+
+ function notify(t){setToast(t);setTimeout(()=>setToast(""),2200)}
+ function like(id){setPosts(ps=>ps.map(p=>p.id===id?{...p,liked:!p.liked,likes:p.likes+(p.liked?-1:1)}:p))}
+ function repost(id){setPosts(ps=>ps.map(p=>p.id===id?{...p,reposted:!p.reposted,reposts:p.reposts+(p.reposted?-1:1)}:p));notify("Reposted to your profile")}
+ function bookmark(id){setPosts(ps=>ps.map(p=>p.id===id?{...p,bookmarked:!p.bookmarked}:p));notify("Saved to bookmarks")}
+ function publish(){
+   if(!draft.trim())return;
+   const p={id:Date.now(),user:"Levi",handle:"@Cozynxis",avatar:"L",verified:"founder",time:"now",text:draft.trim(),tags:[],likes:0,reposts:0,replies:0,bookmarked:false,liked:false};
+   setPosts([p,...posts]);setDraft("");setCompose(false);notify("Posted to Vello");
+ }
+ const nav=(p)=>{setPage(p);if(p==="compose")setCompose(true)}
+ const title={home:"Home",explore:"Explore",notifications:"Notifications",messages:"Messages",bookmarks:"Bookmarks",profile:"Profile",settings:"Settings"}[page]||"Home";
+
+ return <div className="app-shell">
+  <aside className="sidebar">
+   <div className="brand"><div className="brand-mark">V</div><span>vello</span></div>
+   <nav>
+    <NavItem icon={Home} label="Home" active={page==="home"} onClick={()=>nav("home")}/>
+    <NavItem icon={Compass} label="Explore" active={page==="explore"} onClick={()=>nav("explore")}/>
+    <NavItem icon={Bell} label="Notifications" active={page==="notifications"} onClick={()=>nav("notifications")} badge/>
+    <NavItem icon={Mail} label="Messages" active={page==="messages"} onClick={()=>nav("messages")}/>
+    <NavItem icon={Bookmark} label="Bookmarks" active={page==="bookmarks"} onClick={()=>nav("bookmarks")}/>
+    <NavItem icon={User} label="Profile" active={page==="profile"} onClick={()=>nav("profile")}/>
+    <NavItem icon={Settings} label="Settings" active={page==="settings"} onClick={()=>nav("settings")}/>
+   </nav>
+   <button className="post-btn" onClick={()=>setCompose(true)}><Feather size={18}/><span>Post</span></button>
+   <button className="account-mini" onClick={()=>nav("profile")}><Avatar/><div><b>Levi <Badge type="founder"/></b><span>@Cozynxis</span></div><MoreHorizontal size={18}/></button>
+  </aside>
+
+  <main className="main">
+   <header className="topbar">
+    <div><h1>{title}</h1>{page==="home"&&<div className="feed-tabs"><button className="active">For you</button><button>Following</button></div>}</div>
+    <button className="mobile-avatar" onClick={()=>nav("profile")}><Avatar small/></button>
+   </header>
+
+   {page==="home"&&<div className="feed">
+    <div className="composer-inline"><Avatar/><button onClick={()=>setCompose(true)}>What’s happening?</button><div><button onClick={()=>setCompose(true)}><Image size={19}/></button><button onClick={()=>setCompose(true)}><Zap size={19}/></button><button className="mini-post" onClick={()=>setCompose(true)}>Post</button></div></div>
+    {filtered.map(p=><PostCard key={p.id} post={p} onLike={like} onRepost={repost} onBookmark={bookmark} onComment={setActiveComment}/>)}
+   </div>}
+
+   {page==="explore"&&<section className="page"><div className="search-box"><Search size={20}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search Vello"/></div><div className="section-title"><h2>Explore</h2><SlidersHorizontal size={19}/></div><div className="trend-grid">{["#Vello","#Gaming","#Roblox","#Design","#Music","#Technology"].map((x,i)=><button key={x} onClick={()=>setQuery(x)}><small>Trending · {i+1}</small><b>{x}</b><span>{fmt(18200-i*2100)} posts</span></button>)}</div><div className="search-results">{filtered.map(p=><PostCard key={p.id} post={p} onLike={like} onRepost={repost} onBookmark={bookmark} onComment={setActiveComment}/>)}</div></section>}
+
+   {page==="notifications"&&<section className="page"><div className="notification"><Avatar letter="M"/><div><b>Mia Carter</b> liked your post <span>· 4m</span><p>“The timeline feels different...”</p></div><Heart className="liked" size={18}/></div><div className="notification"><Avatar letter="A"/><div><b>Alex</b> followed you <span>· 18m</span></div><button className="follow-small">Follow back</button></div><div className="notification"><Avatar letter="V"/><div><b>Vello</b> mentioned you in a post <span>· 1h</span></div></div></section>}
+
+   {page==="messages"&&<section className="page"><div className="messages-layout"><div className="conversation-list"><div className="section-title"><h2>Messages</h2><button className="icon-btn"><Plus size={19}/></button></div>{["Mia Carter","Alex","Vello Team"].map((n,i)=><button className="conversation" key={n}><Avatar letter={n[0]}/><div><b>{n}</b><span>{["You: sounds good!","The build is looking great.","Welcome to Vello 👋"][i]}</span></div><small>{["2m","31m","2h"][i]}</small></button>)}</div><div className="empty-chat"><div className="empty-icon"><MessageCircle/></div><h2>Your messages</h2><p>Select a conversation to start chatting.</p></div></div></section>}
+
+   {page==="bookmarks"&&<section className="page"><div className="section-title"><h2>Bookmarks</h2><span>{posts.filter(p=>p.bookmarked).length} saved</span></div>{posts.filter(p=>p.bookmarked).map(p=><PostCard key={p.id} post={p} onLike={like} onRepost={repost} onBookmark={bookmark} onComment={setActiveComment}/>)}{posts.every(p=>!p.bookmarked)&&<Empty icon={Bookmark} title="Nothing saved yet" text="Save posts you want to come back to."/>}</section>}
+
+   {page==="profile"&&<section className="page profile-page"><div className="profile-cover"/><div className="profile-head"><Avatar/><button className={`profile-action ${following?"following":""}`} onClick={()=>{setFollowing(!following);notify(following?"Unfollowed @Cozynxis":"Following @Cozynxis")}}>{following?"Following":"Follow"}</button></div><div className="profile-name"><div><h2>Levi <Badge type="founder"/><Badge type="developer"/><Badge type="beta"/></h2><span>@Cozynxis</span></div></div><p className="bio">Building the next generation of social media. 🚀</p><div className="profile-stats"><span><b>1.2M</b> Followers</span><span><b>482K</b> Following</span><span><b>8.7M</b> Likes</span></div><div className="profile-tabs"><button className="active">Posts</button><button>Replies</button><button>Media</button></div>{posts.slice(0,3).map(p=><PostCard key={p.id} post={{...p,user:"Levi",handle:"@Cozynxis",avatar:"L",verified:"founder"}} onLike={like} onRepost={repost} onBookmark={bookmark} onComment={setActiveComment}/>)}</section>}
+
+   {page==="settings"&&<section className="page settings"><h2>Settings</h2><div className="settings-card"><Setting icon={User} title="Account" desc="Profile, username and account details"/><Setting icon={Shield} title="Privacy & safety" desc="Control who can interact with you"/><Setting icon={Bell} title="Notifications" desc="Choose what Vello can notify you about"/><div className="setting-row"><div><b>Dark appearance</b><span>Use Vello’s dark interface</span></div><button className={`toggle ${dark?"on":""}`} onClick={()=>setDark(!dark)}><i/></button></div></div></section>}
+  </main>
+
+  <aside className="rightbar">
+   <div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search"/></div>
+   <div className="side-card"><div className="card-title"><h3>What’s happening</h3><MoreHorizontal size={17}/></div>{["Vello launch","Gaming","Roblox","Creator economy"].map((x,i)=><button className="trend" key={x}><span>Trending · {i+1}</span><b>{x}</b><small>{fmt(14800-i*2300)} posts</small></button>)}</div>
+   <div className="side-card"><div className="card-title"><h3>Who to follow</h3></div>{[["Mia Carter","M"],["Alex","A"],["Vello","V"]].map(([n,a],i)=><div className="suggestion" key={n}><Avatar letter={a} small/><div><b>{n} <Badge type={i===2?"official":"verified"}/></b><span>@{n.toLowerCase().replace(" ","")}</span></div><button>Follow</button></div>)}</div>
+   <footer>Terms · Privacy · Rules · About · © 2026 Vello</footer>
+  </aside>
+
+  {compose&&<div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&setCompose(false)}><div className="modal compose-modal"><div className="modal-head"><button className="icon-btn" onClick={()=>setCompose(false)}><X/></button><b>Create post</b><span/></div><div className="compose-body"><Avatar/><textarea autoFocus value={draft} onChange={e=>setDraft(e.target.value)} placeholder="What’s happening?"/><div className="compose-tools"><div><button><Image/></button><button><Zap/></button><button><Link2/></button></div><button className="mini-post" disabled={!draft.trim()} onClick={publish}>Post</button></div></div></div></div>}
+
+  {activeComment&&<div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&setActiveComment(null)}><div className="modal comment-modal"><div className="modal-head"><button className="icon-btn" onClick={()=>setActiveComment(null)}><X/></button><b>Replies</b><span/></div><PostCard post={activeComment} onLike={like} onRepost={repost} onBookmark={bookmark} onComment={()=>{}}/><div className="reply-box"><Avatar/><input autoFocus value={comment} onChange={e=>setComment(e.target.value)} placeholder="Reply to this post..."/><button disabled={!comment.trim()} onClick={()=>{setComment("");setActiveComment(null);notify("Reply posted")}}>Reply</button></div></div></div>}
+
+  {toast&&<div className="toast"><Check size={17}/>{toast}</div>}
+ </div>
+}
+
+function Setting({icon:Icon,title,desc}){return <button className="setting-row"><Icon size={20}/><div><b>{title}</b><span>{desc}</span></div><ChevronDown size={18}/></button>}
+function Empty({icon:Icon,title,text}){return <div className="empty"><Icon/><h2>{title}</h2><p>{text}</p></div>}
+function load(k,f){try{const x=localStorage.getItem(k);return x?JSON.parse(x):f}catch{return f}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
